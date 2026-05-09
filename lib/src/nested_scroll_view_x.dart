@@ -138,6 +138,28 @@ class _NestedScrollCoordinatorX extends _NestedScrollCoordinator {
   @override
   _NestedScrollMetrics _getMetrics(
       _NestedScrollPosition innerPosition, double velocity) {
+    // Outer or inner can be queried during layout before applyContentDimensions
+    // has finished — most commonly when applyNewDimensions on the outer triggers
+    // createOuterBallisticScrollActivity, which calls back into _getMetrics
+    // before the inner position has had its dimensions applied. Without this
+    // guard the read of `innerPosition.maxScrollExtent` (or the outer's, in
+    // analogous timings) hits `_maxScrollExtent!` while it is still null and
+    // throws a fatal "Null check operator used on a null value" in release
+    // builds. Returning a degenerate metrics object is safe: the activity is
+    // recomputed as soon as dimensions arrive.
+    if (!_outerPosition!.haveDimensions || !innerPosition.haveDimensions) {
+      return _NestedScrollMetrics(
+        minScrollExtent: 0,
+        maxScrollExtent: 0,
+        pixels: 0,
+        viewportDimension: 0,
+        axisDirection: _outerPosition!.axisDirection,
+        minRange: 0,
+        maxRange: 0,
+        correctionOffset: 0,
+        devicePixelRatio: _outerPosition!.devicePixelRatio,
+      );
+    }
     return _NestedScrollMetrics(
       minScrollExtent: _outerPosition!.minScrollExtent,
       maxScrollExtent: _outerPosition!.maxScrollExtent +
